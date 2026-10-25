@@ -58,6 +58,7 @@ export default function InvoiceTemplate({
     <div
       style={{
         width: "794px",
+        height: "1123px",
         minHeight: "1123px",
         fontFamily: "'Segoe UI', 'Helvetica Neue', Arial, sans-serif",
         backgroundColor: "#ffffff",

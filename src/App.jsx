@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import { toPng } from "html-to-image";
 import InvoiceTemplate from "./components/InvoiceTemplate";
+import ResponsiveInvoicePreview from "./components/ResponsiveInvoicePreview";
 import ProductManager from "./components/ProductManager";
 import useProducts from "./hooks/useProducts";
 import shopConfig from "./config/shop";
@@ -51,8 +52,8 @@ export default function App() {
   const [discount, setDiscount] = useState(0);
   const [orderDateStr, setOrderDateStr] = useState(getTodayString());
 
-  // --- Invoice ref for export ---
-  const invoiceRef = useRef(null);
+  // --- Dedicated ref for unscaled high-resolution PNG export ---
+  const exportRef = useRef(null);
   const [exporting, setExporting] = useState(false);
 
   // --- Invoice number ---
@@ -61,15 +62,10 @@ export default function App() {
   );
 
   // --- Derived values ---
-  // If the selected product was deleted, fall back to the first available
   const selectedProduct =
     products.find((p) => p.id === selectedProductId) || products[0];
 
-  // Keep selection in sync — if the selected product doesn't exist, switch
   const effectiveProductId = selectedProduct?.id || "";
-  if (effectiveProductId && effectiveProductId !== selectedProductId) {
-    // This will be caught on next render; safe because we only read it below
-  }
 
   const orderDate = new Date(orderDateStr + "T00:00:00");
   const estimatedDelivery = getEstimatedDelivery(
@@ -100,16 +96,32 @@ export default function App() {
     setSelectedProductId(e.target.value);
   };
 
-  // --- Download PNG ---
+  // --- Download High-Resolution A4 PNG ---
+  // Export happens from the dedicated unscaled template at 1654 × 2339 px (200 DPI A4)
+  // Completely independent of the mobile preview scale.
   const handleDownload = useCallback(async () => {
-    if (!invoiceRef.current) return;
+    if (!exportRef.current) return;
     setExporting(true);
     try {
-      const dataUrl = await toPng(invoiceRef.current, {
-        pixelRatio: 3,
+      // Small pause to guarantee all browser paints & fonts are settled
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const targetWidth = 1654;
+      const pixelRatio = targetWidth / 794; // ≈ 2.0831234 -> produces exact 1654 × 2339 px PNG
+
+      const dataUrl = await toPng(exportRef.current, {
+        width: 794,
+        height: 1123,
+        pixelRatio: pixelRatio,
         backgroundColor: "#ffffff",
         cacheBust: true,
+        style: {
+          transform: "none",
+          margin: "0",
+          position: "static",
+        },
       });
+
       const link = document.createElement("a");
       link.download = getFilename(invoiceNumber, customer.name);
       link.href = dataUrl;
@@ -147,7 +159,6 @@ export default function App() {
     );
   };
 
-  // Product data for the invoice (fallback to placeholder if none)
   const invoiceProduct = selectedProduct
     ? {
         name: selectedProduct.name,
@@ -162,6 +173,19 @@ export default function App() {
         description: "",
       };
 
+  const invoiceProps = {
+    shop: shopConfig,
+    customer,
+    product: invoiceProduct,
+    paymentMode,
+    quantity,
+    pricing,
+    invoiceNumber,
+    orderDate,
+    deliveryPeriod: shopConfig.deliveryPeriod,
+    estimatedDelivery,
+  };
+
   return (
     <div className="min-h-screen bg-gray-100">
       {/* ===== FORM SECTION (hidden during print) ===== */}
@@ -172,7 +196,7 @@ export default function App() {
             RK PEEDIKA INVOICE GENERATOR
           </h1>
           <p className="text-gray-500 text-sm mt-1">
-            Generate and download professional invoices
+            Generate and download professional A4 invoices
           </p>
         </div>
 
@@ -251,7 +275,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setPaymentMode("COD")}
-                className={`py-3 rounded-lg text-sm font-bold border-2 transition-all ${
+                className={`py-3 rounded-lg text-sm font-bold border-2 transition-all cursor-pointer ${
                   paymentMode === "COD"
                     ? "border-orange-500 bg-orange-50 text-orange-700"
                     : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
@@ -262,7 +286,7 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setPaymentMode("GPay")}
-                className={`py-3 rounded-lg text-sm font-bold border-2 transition-all ${
+                className={`py-3 rounded-lg text-sm font-bold border-2 transition-all cursor-pointer ${
                   paymentMode === "GPay"
                     ? "border-green-500 bg-green-50 text-green-700"
                     : "border-gray-200 bg-white text-gray-600 hover:border-gray-300"
@@ -286,7 +310,7 @@ export default function App() {
               <select
                 value={effectiveProductId}
                 onChange={handleProductChange}
-                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3a5c] bg-white"
+                className="w-full border border-gray-300 rounded-lg p-3 text-sm focus:outline-none focus:ring-2 focus:ring-[#1b3a5c] bg-white cursor-pointer"
               >
                 {products.map((p) => (
                   <option key={p.id} value={p.id}>
@@ -300,7 +324,7 @@ export default function App() {
 
           {/* Selected product info chip */}
           {selectedProduct && (
-            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-0.5">
+            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-0.5 border border-gray-200">
               <div>
                 <span className="font-semibold text-gray-700">Product:</span>{" "}
                 {selectedProduct.name}
@@ -397,63 +421,75 @@ export default function App() {
         </div>
 
         {/* ---- Invoice Preview Label ---- */}
-        <div className="text-center">
+        <div className="text-center pt-2">
           <h2 className="text-lg font-bold text-[#1b3a5c]">
-            Invoice Preview
+            A4 Invoice Preview
           </h2>
           <p className="text-gray-500 text-xs mt-1">
-            This is exactly what will be downloaded as PNG
+            Complete A4 portrait preview. Fits screen automatically without scrolling.
           </p>
         </div>
       </div>
 
-      {/* ===== INVOICE PREVIEW ===== */}
-      <div className="flex justify-center px-2 pb-4 print:p-0 print:m-0">
-        <div
-          className="print:shadow-none shadow-lg overflow-auto"
-          style={{ maxWidth: "100%" }}
-        >
-          <div
-            ref={invoiceRef}
-            style={{ transform: "scale(1)", transformOrigin: "top left" }}
-          >
-            <InvoiceTemplate
-              shop={shopConfig}
-              customer={customer}
-              product={invoiceProduct}
-              paymentMode={paymentMode}
-              quantity={quantity}
-              pricing={pricing}
-              invoiceNumber={invoiceNumber}
-              orderDate={orderDate}
-              deliveryPeriod={shopConfig.deliveryPeriod}
-              estimatedDelivery={estimatedDelivery}
-            />
-          </div>
-        </div>
+      {/* ===== RESPONSIVE INVOICE PREVIEW ===== */}
+      {/* On desktop: 100% scale (794x1123). On mobile: scaled down to fit screen width exactly. */}
+      <div className="max-w-4xl mx-auto px-2 pb-6 print:hidden">
+        <ResponsiveInvoicePreview {...invoiceProps} />
       </div>
 
-      {/* ===== ACTION BUTTONS ===== */}
-      <div className="print:hidden max-w-2xl mx-auto px-4 pb-8 space-y-3">
+      {/* ===== ACTION BUTTONS (hidden during print) ===== */}
+      <div className="print:hidden max-w-2xl mx-auto px-4 pb-12 space-y-3">
         <button
           onClick={handleDownload}
           disabled={exporting || !selectedProduct}
-          className="w-full py-4 rounded-xl bg-[#1b3a5c] text-white font-bold text-base hover:bg-[#15304d] active:bg-[#0f2540] transition-colors disabled:opacity-50"
+          className="w-full py-4 rounded-xl bg-[#1b3a5c] text-white font-bold text-base hover:bg-[#15304d] active:bg-[#0f2540] transition-colors disabled:opacity-50 cursor-pointer shadow-md flex items-center justify-center gap-2"
         >
-          {exporting ? "⏳ Generating PNG..." : "📥 DOWNLOAD PNG"}
+          {exporting ? "⏳ Generating High-Resolution A4 PNG..." : "📥 DOWNLOAD PNG (High Res A4)"}
         </button>
         <button
           onClick={handlePrint}
-          className="w-full py-4 rounded-xl bg-white border-2 border-[#1b3a5c] text-[#1b3a5c] font-bold text-base hover:bg-gray-50 active:bg-gray-100 transition-colors"
+          className="w-full py-3.5 rounded-xl bg-white border-2 border-[#1b3a5c] text-[#1b3a5c] font-bold text-base hover:bg-gray-50 active:bg-gray-100 transition-colors cursor-pointer"
         >
-          🖨️ PRINT
+          🖨️ PRINT / SAVE AS PDF
         </button>
         <button
           onClick={handleNewInvoice}
-          className="w-full py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-300 transition-colors"
+          className="w-full py-3 rounded-xl bg-gray-200 text-gray-700 font-semibold text-sm hover:bg-gray-300 transition-colors cursor-pointer"
         >
           🔄 New Invoice
         </button>
+      </div>
+
+      {/* ===== DEDICATED OFF-SCREEN CANVAS FOR HIGH-RES PNG EXPORT ===== */}
+      {/* Kept at standard unscaled 794x1123 coordinates with zero CSS transform so exported PNG is always pristine */}
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          top: 0,
+          left: "-9999px",
+          width: "794px",
+          height: "1123px",
+          overflow: "hidden",
+          pointerEvents: "none",
+          zIndex: -9999,
+        }}
+      >
+        <div
+          ref={exportRef}
+          style={{
+            width: "794px",
+            height: "1123px",
+            backgroundColor: "#ffffff",
+          }}
+        >
+          <InvoiceTemplate {...invoiceProps} />
+        </div>
+      </div>
+
+      {/* ===== PRINT-ONLY CLEAN UNTOUCHED A4 CONTAINER ===== */}
+      <div className="hidden print:block print:m-0 print:p-0">
+        <InvoiceTemplate {...invoiceProps} />
       </div>
     </div>
   );
