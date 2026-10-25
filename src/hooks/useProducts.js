@@ -7,13 +7,26 @@ const DEFAULT_PRODUCTS = [
   {
     id: "cutting-board-41x31",
     name: "Stainless Steel Cutting Board",
-    size: "41 cm (L) × 31 cm (W)",
-    material: "304 Grade Stainless Steel",
-    description: "Premium 304 Grade Stainless Steel Cutting Board",
+    details: "41 cm (L) × 31 cm (W) | 304 Grade Stainless Steel",
     codPrice: 430,
     prepaidPrice: 400,
   },
 ];
+
+function normalizeProduct(p, i = 0) {
+  const details =
+    p.details !== undefined && p.details !== null
+      ? String(p.details)
+      : [p.size, p.material, p.description].filter(Boolean).join(" | ");
+
+  return {
+    id: p.id || `prod-${Date.now()}-${i}`,
+    name: p.name || "Unnamed Product",
+    details: details,
+    codPrice: Number(p.codPrice) || 0,
+    prepaidPrice: Number(p.prepaidPrice) || 0,
+  };
+}
 
 function loadProducts() {
   try {
@@ -21,7 +34,7 @@ function loadProducts() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
+        return parsed.map((p, i) => normalizeProduct(p, i));
       }
     }
   } catch {
@@ -54,8 +67,9 @@ export default function useProducts() {
 
   const addProduct = useCallback((product) => {
     const newProduct = {
-      ...product,
       id: `prod-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      name: (product.name || "").trim(),
+      details: (product.details || "").trim(),
       codPrice: Number(product.codPrice) || 0,
       prepaidPrice: Number(product.prepaidPrice) || 0,
     };
@@ -69,9 +83,19 @@ export default function useProducts() {
         p.id === id
           ? {
               ...p,
-              ...updates,
-              codPrice: Number(updates.codPrice) || 0,
-              prepaidPrice: Number(updates.prepaidPrice) || 0,
+              name: updates.name !== undefined ? (updates.name || "").trim() : p.name,
+              details:
+                updates.details !== undefined
+                  ? (updates.details || "").trim()
+                  : p.details,
+              codPrice:
+                updates.codPrice !== undefined
+                  ? Number(updates.codPrice) || 0
+                  : p.codPrice,
+              prepaidPrice:
+                updates.prepaidPrice !== undefined
+                  ? Number(updates.prepaidPrice) || 0
+                  : p.prepaidPrice,
             }
           : p
       )
@@ -103,16 +127,7 @@ export default function useProducts() {
             reject(new Error("Invalid file: expected an array of products"));
             return;
           }
-          // Validate and ensure each product has an id
-          const validated = parsed.map((p, i) => ({
-            id: p.id || `imported-${Date.now()}-${i}`,
-            name: p.name || "Unnamed Product",
-            size: p.size || "",
-            material: p.material || "",
-            description: p.description || "",
-            codPrice: Number(p.codPrice) || 0,
-            prepaidPrice: Number(p.prepaidPrice) || 0,
-          }));
+          const validated = parsed.map((p, i) => normalizeProduct(p, i));
           setProducts(validated);
           resolve(validated.length);
         } catch {

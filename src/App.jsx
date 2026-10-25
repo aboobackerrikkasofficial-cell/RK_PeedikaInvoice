@@ -162,15 +162,20 @@ export default function App() {
   const invoiceProduct = selectedProduct
     ? {
         name: selectedProduct.name,
-        size: selectedProduct.size || "",
-        material: selectedProduct.material || "",
-        description: selectedProduct.description || "",
+        details:
+          selectedProduct.details !== undefined && selectedProduct.details !== null
+            ? selectedProduct.details
+            : [
+                selectedProduct.size,
+                selectedProduct.material,
+                selectedProduct.description,
+              ]
+                .filter(Boolean)
+                .join(" | "),
       }
     : {
         name: "No product selected",
-        size: "",
-        material: "",
-        description: "",
+        details: "",
       };
 
   const invoiceProps = {
@@ -324,21 +329,24 @@ export default function App() {
 
           {/* Selected product info chip */}
           {selectedProduct && (
-            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-0.5 border border-gray-200">
+            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg p-3 space-y-1 border border-gray-200">
               <div>
                 <span className="font-semibold text-gray-700">Product:</span>{" "}
                 {selectedProduct.name}
               </div>
-              {selectedProduct.size && (
-                <div>
-                  <span className="font-semibold text-gray-700">Size:</span>{" "}
-                  {selectedProduct.size}
-                </div>
-              )}
-              {selectedProduct.material && (
-                <div>
-                  <span className="font-semibold text-gray-700">Material:</span>{" "}
-                  {selectedProduct.material}
+              {(selectedProduct.details ||
+                selectedProduct.size ||
+                selectedProduct.material) && (
+                <div className="whitespace-pre-line text-gray-600">
+                  <span className="font-semibold text-gray-700">Details:</span>{" "}
+                  {selectedProduct.details ||
+                    [
+                      selectedProduct.size,
+                      selectedProduct.material,
+                      selectedProduct.description,
+                    ]
+                      .filter(Boolean)
+                      .join(" | ")}
                 </div>
               )}
               <div>

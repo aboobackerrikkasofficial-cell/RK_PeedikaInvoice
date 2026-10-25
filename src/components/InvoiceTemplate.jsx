@@ -334,17 +334,24 @@ export default function InvoiceTemplate({
               >
                 {product.name}
               </div>
-              <div
-                style={{
-                  fontSize: "11.5px",
-                  color: textLight,
-                  lineHeight: 1.55,
-                }}
-              >
-                {product.size && <div>Size: {product.size}</div>}
-                {product.material && <div>Material: {product.material}</div>}
-                {product.description && <div>{product.description}</div>}
-              </div>
+              {product.details || product.size || product.material || product.description ? (
+                <div
+                  style={{
+                    fontSize: "11.5px",
+                    color: textLight,
+                    lineHeight: 1.5,
+                    whiteSpace: "pre-wrap",
+                    wordWrap: "break-word",
+                    overflowWrap: "break-word",
+                    wordBreak: "break-word",
+                  }}
+                >
+                  {product.details ||
+                    [product.size, product.material, product.description]
+                      .filter(Boolean)
+                      .join(" | ")}
+                </div>
+              ) : null}
             </td>
             <td
               style={{
